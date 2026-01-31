@@ -55,6 +55,10 @@ contract RehabPoints {
     /// @notice Belöningskonfiguration per RewardType.
     mapping(RewardType => Reward) private _rewards;
 
+    /// @notice Tidpunkt för senaste poängintjäning per medlem.
+    mapping(address => uint256) public lastEarnTime;
+
+
     /// @notice Totala poäng i systemet.
     uint128 public totalPoints;
 
@@ -66,6 +70,7 @@ contract RehabPoints {
     event PointsEarned(address indexed member, uint96 amount, string reason);
     event PointsTransferred(address indexed from, address indexed to, uint96 amount);
     event PointsRedeemed(address indexed member, RewardType indexed rewardType, uint96 cost);
+    event PointsRedeemedGeneric(address indexed member, uint96 amount, string reason);
     event RewardUpdated(RewardType indexed rewardType, uint96 cost, bool active);
     event AdminPointsGranted(address indexed to, uint96 amount, string reason);
     event EtherReceived(address indexed from, uint256 amount);
@@ -109,14 +114,14 @@ contract RehabPoints {
     //  RECEIVE & FALLBACK
     // -------------------------------------------------------------------------
 
-    /// @notice Tar emot ETH (donationer).
+    /// @notice Stoppa ETH från att skickas in av misstag.
     receive() external payable {
-        emit EtherReceived(msg.sender, msg.value);
+        revert("ETH not accepted");
     }
 
-    /// @notice Fångar anrop som inte matchar någon funktion.
+    /// @notice Stoppar calldata + ETH.
     fallback() external payable {
-        emit FallbackCalled(msg.sender, msg.value, msg.data);
+        revert("ETH not accepted");
     }
 
     // -------------------------------------------------------------------------
@@ -125,7 +130,7 @@ contract RehabPoints {
 
     /// @notice Låter vem som helst bli medlem.
     function joinAsMember() external {
-        if (_isMember[msg.sender]) revert AlreadyMember();
+        require(!_isMember[msg.sender], "Already a member");
         _isMember[msg.sender] = true;
         emit MemberJoined(msg.sender);
     }
@@ -141,24 +146,34 @@ contract RehabPoints {
 
     /// @notice Medlem tjänar poäng genom egen aktivitet.
     function earnPoints(uint96 amount, string calldata reason) external onlyMember {
-        if (amount == 0) revert ZeroAmount();
+        require(amount > 0, "Amount must be greater than zero");
+
+    // Cooldown: 24 timmar
+        require(block.timestamp >= lastEarnTime[msg.sender] + 1 days, "Can only earn points once every 24h");
+    // Här sparar jag tidigare värde för asserten
+        uint256 before = _points[msg.sender];
+
         _addPoints(msg.sender, amount);
+
+        assert(_points[msg.sender] == before + amount);
+        lastEarnTime[msg.sender] = block.timestamp;
+
         emit PointsEarned(msg.sender, amount, reason);
-    }
+}
 
     /// @notice Admin tilldelar poäng till valfri medlem.
     function grantPoints(address to, uint96 amount, string calldata reason) external onlyAdmin {
-        if (to == address(0)) revert ZeroAddress();
-        if (amount == 0) revert ZeroAmount();
+        require(_isMember[to], "Recipient must be a member");
+        require(amount > 0, "Amount must be positive");
 
-        if (!_isMember[to]) {
-            _isMember[to] = true;
-            emit MemberJoined(to);
-        }
+        uint256 before = _points[to];
 
         _addPoints(to, amount);
+
+        assert(_points[to] == before + amount);
+
         emit AdminPointsGranted(to, amount, reason);
-    }
+}
 
     /// @notice Överför poäng mellan medlemmar.
     function transferPoints(address to, uint96 amount) external onlyMember {
@@ -199,33 +214,36 @@ contract RehabPoints {
         return _rewards[rewardType];
     }
 
-    /// @notice Medlem löser in en belöning.
-    function redeemReward(RewardType rewardType) external onlyMember {
-        Reward memory reward = _rewards[rewardType];
-        if (!reward.active) revert RewardInactive();
-        if (reward.cost == 0) revert ZeroAmount();
+   
+    /// @notice Medlem löser in poäng.
+    function redeemPoints(uint96 amount, string calldata reason) external onlyMember {
+        require(amount > 0, "Amount must be greater than zero");
+        require(_points[msg.sender] >= amount, "Insufficient points"); 
+        uint96 before = _points[msg.sender]; 
 
-        uint96 balance = _points[msg.sender];
-        if (balance < reward.cost) revert NotEnoughPoints();
+        _points[msg.sender] = before - amount;
 
-        unchecked {
-            _points[msg.sender] = balance - reward.cost;
-            totalPoints -= uint128(reward.cost);
-        }
+    // intern invariant
+        assert(_points[msg.sender] + amount == before);
 
-        emit PointsRedeemed(msg.sender, rewardType, reward.cost);
+        emit PointsRedeemedGeneric(msg.sender, amount, reason);
     }
 
-    // -------------------------------------------------------------------------
     //  INTERNAL LOGIC
     // -------------------------------------------------------------------------
 
+    /// @dev Intern funktion för att lägga till poäng.
     function _addPoints(address to, uint96 amount) internal {
-        _points[to] += amount;
+   
+        require(to != address(0), "Zero address");
+        require(amount > 0, "Amount must be greater than zero");
 
-        unchecked {
-            totalPoints += uint128(amount);
-        }
+        uint96 before = _points[to]; // NEW
+
+        _points[to] = before + amount;
+
+        
+        assert(_points[to] >= before);
     }
     
 }
