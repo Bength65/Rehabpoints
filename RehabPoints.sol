@@ -149,7 +149,12 @@ contract RehabPoints {
         require(amount > 0, "Amount must be greater than zero");
 
     // Cooldown: 24 timmar
-        require(block.timestamp >= lastEarnTime[msg.sender] + 1 days, "Can only earn points once every 24h");
+       if (lastEarnTime[msg.sender] != 0) {
+    require(
+        block.timestamp >= lastEarnTime[msg.sender] + 1 days,
+        "Can only earn points once every 24h"
+    );
+}
     // Här sparar jag tidigare värde för asserten
         uint256 before = _points[msg.sender];
 
@@ -238,7 +243,7 @@ contract RehabPoints {
         require(to != address(0), "Zero address");
         require(amount > 0, "Amount must be greater than zero");
 
-        uint96 before = _points[to]; // NEW
+        uint96 before = _points[to]; 
 
         _points[to] = before + amount;
 

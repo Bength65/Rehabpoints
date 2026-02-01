@@ -1,5 +1,4 @@
-# RehabPoints – Medlemsbaserat Poäng- och Belöningssystem
-
+RehabPoints – Medlemsbaserat Poäng- och Belöningssystem
 RehabPoints är ett smart kontrakt på Ethereum Sepolia som hanterar:
 - Medlemskap
 - Poängintjäning
@@ -8,74 +7,102 @@ RehabPoints är ett smart kontrakt på Ethereum Sepolia som hanterar:
 - Inlösen
 - Admin‑kontroll
 - Eventloggning
-- Ether‑mottagning
-
+- Säker hantering av ETH
 Kontraktet är skrivet i Solidity 0.8.28 och är gasoptimerat med:
-- `uint96` / `uint128`
-- `immutable`
-- `custom errors`
-- `unchecked` block
+- uint96 / uint128
+- immutable
+- custom errors
+- unchecked block
+- cooldown‑logik för att förhindra missbruk
 
-## 🚀 Deployment
+🚀 Deployment
 Kontraktet är deployat på Sepolia:
+## 📌 Kontraktsadress
+**0x289093350BDcCF26BA927345edf3872E7081CDf6**
 
-**Contract Address:**  
-`0x73108ab1E119d1a0987FADFD1e622186B8F7f133`
+Verifierad på Etherscan:  
+https://sepolia.etherscan.io/address/0x289093350bdccf26ba927345edf3872e7081cdf6#code
 
-**Deployer:**  
-`0x066B866a5BB8E1832a7b792A56fC87578F5F4192`
+Kontraktet deployades med Foundry:
 
-Kontraktet är verifierat på Etherscan.
 
----
+📚 Funktionalitet
+👥 Medlemskap
+- joinAsMember() – vem som helst kan bli medlem
+- isMember(address) – kontrollera medlemskap
+- onlyMember – skyddar funktioner som kräver medlemskap
+- Admin blir automatiskt medlem i konstruktorn
 
-# 📚 Funktionalitet
+⭐ Poängsystem
+- earnPoints(amount, reason)
+- medlem tjänar poäng
+- 24h cooldown för att förhindra spam
+- första intjäningen är alltid tillåten
+- grantPoints(to, amount, reason)
+- admin tilldelar poäng
+- kräver att mottagaren är medlem
+- transferPoints(to, amount)
+- överför poäng mellan medlemmar
+- validerar: medlemskap, saldo, nolladress, nollbelopp
+- getPoints(address) – hämta saldo
+- _addPoints() – intern funktion med invariant‑kontroll
 
-## 👥 Medlemskap
-- `joinAsMember()` – vem som helst kan bli medlem  
-- `isMember(address)` – kontrollera medlemskap  
-- `onlyMember` – modifierare för att skydda funktioner  
+🎁 Belöningar
+- RewardType enum
+- Reward struct
+- setReward(type, cost, active) – admin uppdaterar belöning
+- getReward(type) – hämta belöning
+- redeemPoints(amount, reason) – medlem löser in poäng
 
-## ⭐ Poängsystem
-- `earnPoints(amount, reason)` – medlem tjänar poäng  
-- `grantPoints(to, amount, reason)` – admin tilldelar poäng  
-- `transferPoints(to, amount)` – överför poäng mellan medlemmar  
-- `getPoints(address)` – hämta saldo  
-- `_addPoints()` – intern funktion  
+🛡 Admin
+- admin är immutable
+- onlyAdmin skyddar alla administrativa funktioner
 
-## 🎁 Belöningar
-- `RewardType` enum  
-- `Reward` struct  
-- `setReward(type, cost, active)` – admin uppdaterar belöning  
-- `getReward(type)` – hämta belöning  
-- `redeemReward(type)` – medlem löser in belöning  
+⚙ Gasoptimering & Säkerhet
+Kontraktet använder flera optimeringar:
+- uint96 / uint128 för att minska storage‑kostnader
+- immutable admin för billigare läsningar
+- custom errors för lägre gas än revert‑strängar
+- cooldown‑logik för att förhindra missbruk
+- strict access control via onlyAdmin och onlyMember
+- revert i receive/fallback för att förhindra oavsiktlig ETH‑inlåning
 
-## 🛡 Admin
-- `admin` är immutable  
-- `onlyAdmin` modifier  
+**Gasrapport från deployment:**  
+Total gas: 2017270  
+Gaspris: 1.104208976 gwei  
+ETH betalt: 0.00222748764101552 ETH  
+Bytecode‑storlek: 8413 bytes
 
-## ⚙ Gasoptimering & Säkerhet
-- custom errors  
-- unchecked block  
-- uint96/uint128  
-- immutable admin  
 
-## 💰 Ether-hantering
-- `receive()` – tar emot ETH  
-- `fallback()` – fångar okända anrop  
+💰 Ether-hantering
+Kontraktet ska inte ta emot ETH.
+- receive() – revertar alltid
+- fallback() – revertar alltid
+Detta skyddar användare från att skicka ETH av misstag.
 
-## 📡 Events
-- `MemberJoined`  
-- `PointsEarned`  
-- `PointsTransferred`  
-- `PointsRedeemed`  
-- `RewardUpdated`  
-- `AdminPointsGranted`  
-- `EtherReceived`  
-- `FallbackCalled`  
+📡 Events
+- MemberJoined
+- PointsEarned
+- PointsTransferred
+- PointsRedeemedGeneric
+- RewardUpdated
+- AdminPointsGranted
 
----
+🧪 Testning (Foundry)
+Testerna täcker:
+- Medlemskap
+- Poängintjäning + cooldown
+- Admin‑tilldelning
+- Poängöverföringar
+- Inlösen
+- Reward‑system
+- Fallback/receive
+- Alla felvägar (custom errors + require‑strängar)
 
-# 🧪 Testning (Foundry)
-```bash
-forge test
+**Utvecklingsmiljö:**  
+Solidity 0.8.28  
+Foundry (Forge + Cast)  
+Sepolia Testnet via Alchemy  
+Etherscan API  
+Windows 11 + PowerShell
+
